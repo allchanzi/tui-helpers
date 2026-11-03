@@ -1,0 +1,13 @@
+[package]
+name = "whichkey"
+description = "A which-key key tree and popup for Ratatui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+
+[dev-dependencies]
+ratatui = { workspace = true, features = ["crossterm"] }
+crossterm.workspace = true
