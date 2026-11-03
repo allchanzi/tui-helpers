@@ -1,0 +1,13 @@
+[package]
+name = "rustline"
+description = "A lualine-style status line for Ratatui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+
+[dev-dependencies]
+ratatui = { workspace = true, features = ["crossterm"] }
+crossterm.workspace = true

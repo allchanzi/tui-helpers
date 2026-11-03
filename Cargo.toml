@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["crates/rustline", "crates/whichkey"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+repository = ""
+
+[workspace.dependencies]
+ratatui = { version = "0.30", default-features = false }
+crossterm = "0.29"
