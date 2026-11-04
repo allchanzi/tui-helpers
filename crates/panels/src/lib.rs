@@ -162,6 +162,109 @@ pub fn block(number: usize, text: &str, focused: bool, palette: Palette) -> Bloc
         .border_style(Style::new().fg(color))
 }
 
+
+/// Proportional multi-column layout for dashboards: columns of weighted panels
+/// that collapse into a single stacked column when the area is narrow.
+///
+/// Rects come back in *spec order* (column by column, top to bottom), so the
+/// caller can number the panels in that order.
+#[derive(Clone, Debug)]
+pub struct Flow {
+    columns: Vec<Vec<u16>>,
+    wide_from: u16,
+    focus_boost: u16,
+}
+
+impl Flow {
+    /// `columns[c][r]` is the weight of the r-th panel of column c. Columns share
+    /// the width evenly.
+    pub fn new(columns: impl Into<Vec<Vec<u16>>>) -> Self {
+        Self {
+            columns: columns.into(),
+            wide_from: 100,
+            focus_boost: 2,
+        }
+    }
+    /// Width from which the columns are shown side by side.
+    pub fn wide_from(mut self, columns: u16) -> Self {
+        self.wide_from = columns;
+        self
+    }
+    /// In the stacked layout the focused panel's weight is multiplied by this,
+    /// so it gets more room (lazygit-style accordion). `1` disables it.
+    pub fn focus_boost(mut self, factor: u16) -> Self {
+        self.focus_boost = factor.max(1);
+        self
+    }
+    /// Number of panels.
+    pub fn len(&self) -> usize {
+        self.columns.iter().map(Vec::len).sum()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    /// True when `area` is wide enough for side-by-side columns.
+    pub fn is_wide(&self, area: Rect) -> bool {
+        self.columns.len() > 1 && area.width >= self.wide_from
+    }
+    /// Panel rects in spec order. `focus` is the spec-order index of the focused
+    /// panel (only used by the stacked layout).
+    pub fn layout(&self, area: Rect, focus: Option<usize>) -> Vec<Rect> {
+        if self.is_wide(area) {
+            let count = self.columns.len() as u32;
+            let mut rects = Vec::with_capacity(self.len());
+            let mut left = area.x;
+            for (c, weights) in self.columns.iter().enumerate() {
+                let right = area.x + (area.width as u32 * (c as u32 + 1) / count) as u16;
+                let column = Rect::new(left, area.y, right - left, area.height);
+                rects.extend(split(column, weights.iter().copied()));
+                left = right;
+            }
+            rects
+        } else {
+            let focus = focus.unwrap_or(usize::MAX);
+            let weights = self.columns.iter().flatten().enumerate().map(|(i, w)| {
+                if i == focus { w.saturating_mul(self.focus_boost) } else { *w }
+            });
+            split(area, weights)
+        }
+    }
+}
+
+/// Split `area` vertically by weights; every panel gets at least `3` rows when
+/// the area allows it, the remaining rows follow the weights.
+fn split(area: Rect, weights: impl Iterator<Item = u16>) -> Vec<Rect> {
+    let weights: Vec<u16> = weights.map(|w| w.max(1)).collect();
+    let n = weights.len() as u16;
+    if n == 0 {
+        return Vec::new();
+    }
+    const MIN: u16 = 3;
+    let floor = if area.height >= MIN * n { MIN } else { area.height / n };
+    let spare = area.height - floor * n;
+    let total: u32 = weights.iter().map(|w| *w as u32).sum();
+    let mut y = area.y;
+    let mut given = 0u32;
+    let mut cumulative = 0u32;
+    weights
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            cumulative += *w as u32;
+            let target = spare as u32 * cumulative / total;
+            let extra = (target - given) as u16;
+            given = target;
+            let mut h = floor + extra;
+            if i as u16 == n - 1 {
+                h = area.bottom() - y;
+            }
+            let rect = Rect::new(area.x, y, area.width, h);
+            y += h;
+            rect
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +330,37 @@ mod tests {
         assert_eq!(p, Position::new(3, 10));
         assert_eq!(a.panel_at(p), Some(1));
         assert_eq!(a.hit(area, offset, 60, 0), None);
+    }
+
+    #[test]
+    fn flow_splits_columns_when_wide_and_collapses_when_narrow() {
+        let flow = Flow::new([vec![22, 18, 60], vec![60, 40]]).wide_from(100);
+        let wide = flow.layout(Rect::new(0, 0, 120, 40), None);
+        assert_eq!(wide.len(), 5);
+        assert_eq!(wide[0].x, 0);
+        assert_eq!(wide[3].x, 60);
+        assert_eq!(wide[2].bottom(), 40);
+        assert_eq!(wide[4].bottom(), 40);
+        let narrow = flow.layout(Rect::new(0, 0, 80, 40), Some(3));
+        assert_eq!(narrow.len(), 5);
+        assert!(narrow.iter().all(|r| r.x == 0 && r.width == 80));
+        assert_eq!(narrow[4].bottom(), 40);
+        for pair in narrow.windows(2) {
+            assert_eq!(pair[0].bottom(), pair[1].y);
+        }
+        // The focused panel gets more room than it would without the boost.
+        let flat = Flow::new([vec![22, 18, 60], vec![60, 40]])
+            .focus_boost(1)
+            .layout(Rect::new(0, 0, 80, 40), Some(3));
+        assert!(narrow[3].height > flat[3].height);
+    }
+
+    #[test]
+    fn flow_gives_every_panel_room_on_short_screens() {
+        let flow = Flow::new([vec![1, 1, 1]]);
+        let rects = flow.layout(Rect::new(0, 0, 50, 9), None);
+        assert!(rects.iter().all(|r| r.height == 3));
+        let tiny = flow.layout(Rect::new(0, 0, 50, 2), None);
+        assert_eq!(tiny.iter().map(|r| r.height).sum::<u16>(), 2);
     }
 }

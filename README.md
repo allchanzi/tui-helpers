@@ -8,7 +8,7 @@ application; colors and actions come from the caller.
 | --- | --- | --- |
 | [`rustline`](crates/rustline) | Responsive status line with segments, Powerline or plain separators, priorities | lualine |
 | [`whichkey`](crates/whichkey) | Key tree, pending-prefix state, delayed popup, breadcrumb | which-key.nvim |
-| [`panels`](crates/panels) | Numbered `[1] Title` panels, side by side when wide and stacked when narrow, scrolled to the focus | lazygit / lazydocker |
+| [`panels`](crates/panels) | Numbered `[1] Title` panels: side by side when wide, stacked when narrow; fixed-height `Panels` with scrolling and weighted `Flow` dashboards | lazygit / lazydocker |
 
 All target Ratatui 0.30 and Rust 2024. None needs a backend feature, so they
 work with any Ratatui backend. Run the demos in a real terminal:
