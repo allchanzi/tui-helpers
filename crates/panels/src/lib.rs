@@ -171,6 +171,7 @@ pub fn block(number: usize, text: &str, focused: bool, palette: Palette) -> Bloc
 #[derive(Clone, Debug)]
 pub struct Flow {
     columns: Vec<Vec<u16>>,
+    column_weights: Vec<u16>,
     wide_from: u16,
     focus_boost: u16,
 }
@@ -179,11 +180,18 @@ impl Flow {
     /// `columns[c][r]` is the weight of the r-th panel of column c. Columns share
     /// the width evenly.
     pub fn new(columns: impl Into<Vec<Vec<u16>>>) -> Self {
+        let columns = columns.into();
         Self {
-            columns: columns.into(),
+            column_weights: vec![1; columns.len()],
+            columns,
             wide_from: 100,
             focus_boost: 2,
         }
+    }
+    /// Relative widths of the columns (default: equal). Missing entries count as 1.
+    pub fn column_weights(mut self, weights: impl Into<Vec<u16>>) -> Self {
+        self.column_weights = weights.into();
+        self
     }
     /// Width from which the columns are shown side by side.
     pub fn wide_from(mut self, columns: u16) -> Self {
@@ -211,11 +219,14 @@ impl Flow {
     /// panel (only used by the stacked layout).
     pub fn layout(&self, area: Rect, focus: Option<usize>) -> Vec<Rect> {
         if self.is_wide(area) {
-            let count = self.columns.len() as u32;
+            let weight = |c: usize| self.column_weights.get(c).copied().unwrap_or(1).max(1) as u32;
+            let total: u32 = (0..self.columns.len()).map(weight).sum();
             let mut rects = Vec::with_capacity(self.len());
             let mut left = area.x;
+            let mut cumulative = 0u32;
             for (c, weights) in self.columns.iter().enumerate() {
-                let right = area.x + (area.width as u32 * (c as u32 + 1) / count) as u16;
+                cumulative += weight(c);
+                let right = area.x + (area.width as u32 * cumulative / total) as u16;
                 let column = Rect::new(left, area.y, right - left, area.height);
                 rects.extend(split(column, weights.iter().copied()));
                 left = right;
@@ -353,6 +364,13 @@ mod tests {
             .focus_boost(1)
             .layout(Rect::new(0, 0, 80, 40), Some(3));
         assert!(narrow[3].height > flat[3].height);
+    }
+
+    #[test]
+    fn flow_column_weights_set_the_wide_widths() {
+        let flow = Flow::new([vec![1], vec![1]]).column_weights([2, 3]).wide_from(50);
+        let rects = flow.layout(Rect::new(0, 0, 100, 10), None);
+        assert_eq!((rects[0].width, rects[1].x, rects[1].width), (40, 40, 60));
     }
 
     #[test]
