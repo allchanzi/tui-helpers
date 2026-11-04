@@ -1,0 +1,13 @@
+[package]
+name = "panels"
+description = "Responsive numbered panels for Ratatui: side by side when wide, stacked when narrow, scrolled to the focus"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+
+[dev-dependencies]
+ratatui = { workspace = true, features = ["crossterm"] }
+crossterm.workspace = true
