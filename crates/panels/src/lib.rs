@@ -228,17 +228,49 @@ impl Flow {
                 cumulative += weight(c);
                 let right = area.x + (area.width as u32 * cumulative / total) as u16;
                 let column = Rect::new(left, area.y, right - left, area.height);
+                let start = rects.len();
                 rects.extend(split(column, weights.iter().copied()));
+                if let Some(focus) = focus.filter(|f| (start..rects.len()).contains(f)) {
+                    keep_focus_visible(&mut rects[start..], focus - start);
+                }
                 left = right;
             }
             rects
         } else {
-            let focus = focus.unwrap_or(usize::MAX);
+            let focused = focus.unwrap_or(usize::MAX);
             let weights = self.columns.iter().flatten().enumerate().map(|(i, w)| {
-                if i == focus { w.saturating_mul(self.focus_boost) } else { *w }
+                if i == focused { w.saturating_mul(self.focus_boost) } else { *w }
             });
-            split(area, weights)
+            let mut rects = split(area, weights);
+            if let Some(focus) = focus.filter(|f| *f < rects.len()) {
+                keep_focus_visible(&mut rects, focus);
+            }
+            rects
         }
+    }
+}
+
+/// Rows the focused panel needs to show content: two borders and three lines.
+const FOCUS_MIN: u16 = 5;
+
+/// On a short terminal the weights can leave the focused panel with only its
+/// borders. Take rows from the tallest other panels, down to a title row each.
+fn keep_focus_visible(rects: &mut [Rect], focus: usize) {
+    while rects[focus].height < FOCUS_MIN {
+        let donor = rects
+            .iter()
+            .enumerate()
+            .filter(|(index, rect)| *index != focus && rect.height > 1)
+            .max_by_key(|(_, rect)| rect.height)
+            .map(|(index, _)| index);
+        let Some(donor) = donor else { break };
+        rects[donor].height -= 1;
+        rects[focus].height += 1;
+    }
+    let mut y = rects.first().map_or(0, |rect| rect.y);
+    for rect in rects.iter_mut() {
+        rect.y = y;
+        y += rect.height;
     }
 }
 
@@ -279,6 +311,30 @@ fn split(area: Rect, weights: impl Iterator<Item = u16>) -> Vec<Rect> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn focused_panel_keeps_room_for_content_on_a_short_terminal() {
+        let flow = Flow::new([vec![22, 18, 60], vec![60, 40]]);
+        let area = Rect::new(0, 0, 40, 11);
+        for focus in 0..5 {
+            let rects = flow.layout(area, Some(focus));
+            assert!(rects[focus].height >= FOCUS_MIN, "{focus}: {rects:?}");
+            assert_eq!(rects.iter().map(|r| r.height).sum::<u16>(), 11);
+            for pair in rects.windows(2) {
+                assert_eq!(pair[0].bottom(), pair[1].y);
+            }
+        }
+        let wide = Flow::new([vec![1, 1, 1], vec![1]]).layout(Rect::new(0, 0, 120, 9), Some(0));
+        assert!(wide[0].height >= FOCUS_MIN);
+        assert_eq!(wide.iter().take(3).map(|r| r.height).sum::<u16>(), 9);
+    }
+
+    #[test]
+    fn focus_outside_the_panels_changes_nothing() {
+        let flow = Flow::new([vec![1, 1]]);
+        let area = Rect::new(0, 0, 40, 10);
+        assert_eq!(flow.layout(area, Some(9)), flow.layout(area, None));
+    }
 
     fn two() -> Panels {
         Panels::new([6, 6]).header(2).wide_from(96)

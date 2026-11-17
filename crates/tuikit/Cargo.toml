@@ -1,0 +1,10 @@
+[package]
+name = "tuikit"
+description = "Shared TUI interaction pieces for Ratatui: Vim list navigation, smartcase search, scrollable help, too-small state"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ratatui = { workspace = true, features = ["crossterm", "unstable-rendered-line-info"] }
+crossterm.workspace = true

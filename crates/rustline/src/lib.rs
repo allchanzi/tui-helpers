@@ -24,6 +24,17 @@ pub enum Separators {
     Plain,
 }
 
+impl Separators {
+    /// Powerline unless `TUI_FOOTER_PLAIN` is set to anything but `0`, for fonts
+    /// without Powerline glyphs. Applies to every app using this default.
+    pub fn from_env() -> Self {
+        match std::env::var_os("TUI_FOOTER_PLAIN") {
+            Some(value) if !value.is_empty() && value != "0" => Self::Plain,
+            _ => Self::Powerline,
+        }
+    }
+}
+
 /// Colors of the bar itself, outside any segment.
 #[derive(Clone, Copy, Debug)]
 pub struct Palette {
