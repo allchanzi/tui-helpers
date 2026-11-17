@@ -9,6 +9,7 @@ application; colors and actions come from the caller.
 | [`rustline`](crates/rustline) | Responsive status line with segments, Powerline or plain separators, priorities | lualine |
 | [`whichkey`](crates/whichkey) | Key tree, pending-prefix state, delayed popup, breadcrumb | which-key.nvim |
 | [`panels`](crates/panels) | Numbered `[1] Title` panels: side by side when wide, stacked when narrow; fixed-height `Panels` with scrolling and weighted `Flow` dashboards | lazygit / lazydocker |
+| [`tuikit`](crates/tuikit) | Shared interaction: `gg/G` and paging keys, smartcase search, scrollable help popup, too-small state | Vim motions, `smartcase` |
 
 All target Ratatui 0.30 and Rust 2024. None needs a backend feature, so they
 work with any Ratatui backend. Run the demos in a real terminal:
@@ -23,11 +24,11 @@ cargo run -p panels --example demo
 
 ```toml
 [dependencies]
-# local checkout
-rustline = { path = "../tui-helpers/crates/rustline" }
-whichkey = { path = "../tui-helpers/crates/whichkey" }
-# or from a git remote once you have pushed this repository
-# rustline = { git = "https://example.invalid/you/tui-helpers" }
+# pin a revision so that apps move to new helpers on purpose
+rustline = { git = "https://github.com/allchanzi/tui-helpers", rev = "<commit>" }
+whichkey = { git = "https://github.com/allchanzi/tui-helpers", rev = "<commit>" }
+# or a local checkout while developing
+# rustline = { path = "../tui-helpers/crates/rustline" }
 ```
 
 Use the same `ratatui` minor version as these crates (0.30), otherwise the
@@ -47,6 +48,8 @@ Rustline::new(Palette { base, text }, Separators::Powerline)
     .draw(frame, area); // area is one row
 ```
 
+- `Separators::from_env()` returns `Plain` when `TUI_FOOTER_PLAIN` is set to
+  anything but `0`.
 - **Required** segments are placed first and shortened, never dropped.
 - **Optional** segments appear while there is room. `min_width` lets one shrink
   to that many cells; `min_bar_width` hides it on narrow bars.
@@ -86,10 +89,31 @@ the current level as one line for a status hint, so the popup, hint and help tex
 all come from the same tree. `Keymap` alone is the pure tree if you manage the
 pending state yourself.
 
+## panels on short terminals
+
+`Flow` keeps at least five rows for the focused panel by shrinking the others,
+down to a title row each.
+
+## tuikit
+
+```rust
+use tuikit::{NavKeys, NavStep, ScrollPopup, next_match, smart_contains};
+
+match keys.press(key) {
+    NavStep::Move(nav) => index = nav.apply(index, len, page_rows),
+    NavStep::Pending => {}             // first g of gg
+    NavStep::Other => handle_other(key),
+}
+next_match(len, index, backwards, |i| smart_contains(&items[i], query));
+if tuikit::too_small(frame, frame.area()) { return; }
+if popup.key(key) { /* Esc, ? or q: close */ }
+popup.render(frame, area, " Help ", lines, border_style);
+```
+
 ## Status
 
 Extracted from [fleetui](../fleetui), where both modules were written and tested.
-Used by fleetui, [pde](../pde) (`pde_tui`), [rtui](../rtui) and [pantsui](../pantsui) through path
+Used by fleetui, [pde](../pde) (`pde_tui`), [rtui](../rtui) and [pantsui](../pantsui) through git
 dependencies, all with a `Space` leader tree and the Neovim (catppuccin-mocha) palette.
 Verified here: unit tests, clippy and the demos in a tmux session (popup delay,
 groups, narrowing bars). Not verified: a Powerline font's glyph coverage on your
