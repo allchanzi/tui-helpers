@@ -70,7 +70,10 @@ impl NavKeys {
 
     pub fn press(&mut self, key: KeyEvent) -> NavStep {
         let pending = std::mem::take(&mut self.pending_g);
-        if key.modifiers.intersects(KeyModifiers::ALT | KeyModifiers::SUPER) {
+        if key
+            .modifiers
+            .intersects(KeyModifiers::ALT | KeyModifiers::SUPER)
+        {
             return NavStep::Other;
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) {
