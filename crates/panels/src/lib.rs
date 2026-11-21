@@ -54,23 +54,23 @@ impl Panels {
         let count = self.heights.len() as u16;
         let wide = count > 1 && width >= self.wide_from;
         let mut rects = Vec::with_capacity(self.heights.len());
-        let height;
-        if wide {
+
+        let height = if wide {
             let mut x = 0;
             for (i, h) in self.heights.iter().enumerate() {
                 let right = (width as u32 * (i as u32 + 1) / count as u32) as u16;
                 rects.push(Rect::new(x, self.header, right - x, *h));
                 x = right;
             }
-            height = self.header + self.heights.iter().copied().max().unwrap_or(0);
+            self.header + self.heights.iter().copied().max().unwrap_or(0)
         } else {
             let mut y = self.header;
             for h in &self.heights {
                 rects.push(Rect::new(0, y, width, *h));
                 y += h;
             }
-            height = y;
-        }
+            y
+        };
         Arrangement {
             rects,
             width,
@@ -151,7 +151,11 @@ pub struct Palette {
 
 /// A bordered, numbered panel frame; the focused one is highlighted.
 pub fn block(number: usize, text: &str, focused: bool, palette: Palette) -> Block<'static> {
-    let color = if focused { palette.focused } else { palette.idle };
+    let color = if focused {
+        palette.focused
+    } else {
+        palette.idle
+    };
     let mut style = Style::new().fg(color);
     if focused {
         style = style.add_modifier(Modifier::BOLD);
@@ -161,7 +165,6 @@ pub fn block(number: usize, text: &str, focused: bool, palette: Palette) -> Bloc
         .title_style(style)
         .border_style(Style::new().fg(color))
 }
-
 
 /// Proportional multi-column layout for dashboards: columns of weighted panels
 /// that collapse into a single stacked column when the area is narrow.
@@ -239,7 +242,11 @@ impl Flow {
         } else {
             let focused = focus.unwrap_or(usize::MAX);
             let weights = self.columns.iter().flatten().enumerate().map(|(i, w)| {
-                if i == focused { w.saturating_mul(self.focus_boost) } else { *w }
+                if i == focused {
+                    w.saturating_mul(self.focus_boost)
+                } else {
+                    *w
+                }
             });
             let mut rects = split(area, weights);
             if let Some(focus) = focus.filter(|f| *f < rects.len()) {
@@ -283,7 +290,11 @@ fn split(area: Rect, weights: impl Iterator<Item = u16>) -> Vec<Rect> {
         return Vec::new();
     }
     const MIN: u16 = 3;
-    let floor = if area.height >= MIN * n { MIN } else { area.height / n };
+    let floor = if area.height >= MIN * n {
+        MIN
+    } else {
+        area.height / n
+    };
     let spare = area.height - floor * n;
     let total: u32 = weights.iter().map(|w| *w as u32).sum();
     let mut y = area.y;
@@ -424,7 +435,9 @@ mod tests {
 
     #[test]
     fn flow_column_weights_set_the_wide_widths() {
-        let flow = Flow::new([vec![1], vec![1]]).column_weights([2, 3]).wide_from(50);
+        let flow = Flow::new([vec![1], vec![1]])
+            .column_weights([2, 3])
+            .wide_from(50);
         let rects = flow.layout(Rect::new(0, 0, 100, 10), None);
         assert_eq!((rects[0].width, rects[1].x, rects[1].width), (40, 40, 60));
     }
