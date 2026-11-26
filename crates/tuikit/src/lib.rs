@@ -1,5 +1,8 @@
 //! Interaction pieces shared by the terminal apps, so that the same key means the
 //! same thing everywhere. Application actions stay in the applications.
+mod selection;
+pub use selection::{TextSelection, copy_text};
+
 use std::cell::Cell;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -155,6 +158,7 @@ pub fn too_small(frame: &mut Frame<'_>, area: Rect) -> bool {
 /// A centered overlay of text that scrolls when it does not fit.
 #[derive(Debug, Default)]
 pub struct ScrollPopup {
+    pub text_area: Cell<Rect>,
     keys: NavKeys,
     scroll: usize,
     // Written while rendering: only the frame knows how far the text wraps.
@@ -223,6 +227,7 @@ impl ScrollPopup {
             width,
             height,
         );
+        self.text_area.set(block.inner(rect));
         frame.render_widget(Clear, rect);
         frame.render_widget(
             paragraph
